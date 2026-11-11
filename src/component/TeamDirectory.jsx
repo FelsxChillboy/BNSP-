@@ -18,7 +18,16 @@ function loadMembers() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return INITIAL_MEMBERS;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : INITIAL_MEMBERS;
+    // Validasi bentuk data: harus array of object dengan field esensial
+    // yang benar tipenya — jika korup, fallback ke mock data agar app tetap render
+    const isValid = Array.isArray(parsed) && parsed.every(m =>
+      m && typeof m === 'object' &&
+      typeof m.namaLengkap === 'string' &&
+      typeof m.posisi === 'string' &&
+      (m.status === 'Online' || m.status === 'Offline') &&
+      typeof m.rating === 'number'
+    );
+    return isValid ? parsed : INITIAL_MEMBERS;
   } catch {
     return INITIAL_MEMBERS;
   }

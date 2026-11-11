@@ -26,13 +26,13 @@ function TeamCard({ member, onEdit, onDelete, onToggleStatus, onAddStar }) {
         <div className="mt-1 flex w-full gap-2">
           <button
             onClick={() => onAddStar(id)}
-            className="flex-1 whitespace-nowrap rounded-lg border-[1.5px] border-amber-500 bg-white py-2 text-xs font-bold text-amber-600 transition hover:border-amber-600 hover:bg-amber-100 active:scale-[0.97]"
+            className="flex-1 cursor-pointer font-[inherit] whitespace-nowrap rounded-lg border-[1.5px] border-amber-500 bg-white py-2 text-xs font-bold text-amber-600 transition hover:border-amber-600 hover:bg-amber-100 active:scale-[0.97]"
           >
             ⭐ Beri Bintang
           </button>
           <button
             onClick={() => onToggleStatus(id)}
-            className="flex-1 whitespace-nowrap rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 active:scale-[0.97]"
+            className="flex-1 cursor-pointer border-0 font-[inherit] whitespace-nowrap rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 active:scale-[0.97]"
           >
             Ubah ke {status === 'Online' ? 'Offline' : 'Online'}
           </button>
@@ -42,13 +42,13 @@ function TeamCard({ member, onEdit, onDelete, onToggleStatus, onAddStar }) {
         <div className="mt-2 flex w-full gap-2">
           <button
             onClick={() => onEdit(id)}
-            className="flex-1 whitespace-nowrap rounded-lg bg-sky-600 py-2 text-xs font-semibold text-white transition hover:bg-sky-700 active:scale-[0.97]"
+            className="flex-1 cursor-pointer border-0 font-[inherit] whitespace-nowrap rounded-lg bg-sky-600 py-2 text-xs font-semibold text-white transition hover:bg-sky-700 active:scale-[0.97]"
           >
             ✏️ Edit
           </button>
           <button
             onClick={() => onDelete(id)}
-            className="flex-1 whitespace-nowrap rounded-lg bg-red-600 py-2 text-xs font-semibold text-white transition hover:bg-red-700 active:scale-[0.97]"
+            className="flex-1 cursor-pointer border-0 font-[inherit] whitespace-nowrap rounded-lg bg-red-600 py-2 text-xs font-semibold text-white transition hover:bg-red-700 active:scale-[0.97]"
           >
             🗑️ Hapus
           </button>

@@ -48,7 +48,7 @@ function AddMemberForm({ onSubmit, editingMember, onCancelEdit }) {
   };
 
   const inputClass = (field) =>
-    `rounded-lg border-[1.5px] px-3.5 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-600 ${errors[field] ? 'border-red-500 bg-red-50' : 'border-slate-300'}`;
+    `font-[inherit] rounded-lg border-[1.5px] px-3.5 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-600 ${errors[field] ? 'border-red-500 bg-red-50' : 'border-slate-300'}`;
 
   return (
     <form onSubmit={handleSubmit} className="mb-6 rounded-2xl border-[1.5px] border-slate-200 bg-white p-6 shadow-sm">
@@ -102,14 +102,14 @@ function AddMemberForm({ onSubmit, editingMember, onCancelEdit }) {
             <button
               type="button"
               onClick={onCancelEdit}
-              className="whitespace-nowrap rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-300 active:scale-[0.98]"
+              className="cursor-pointer border-0 font-[inherit] whitespace-nowrap rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-300 active:scale-[0.98]"
             >
               Batal
             </button>
           )}
           <button
             type="submit"
-            className="whitespace-nowrap rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-sky-700 active:scale-[0.98]"
+            className="cursor-pointer border-0 font-[inherit] whitespace-nowrap rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-sky-700 active:scale-[0.98]"
           >
             {editingMember ? 'Simpan Perubahan' : '+ Tambah Anggota'}
           </button>
