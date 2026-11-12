@@ -1,49 +1,42 @@
 import { useEffect, useState } from 'react';
 import AddMemberForm from './AddMemberForm';
 import TeamCard from './TeamCard';
-
-// Kunci penyimpanan localStorage untuk persistensi data anggota tim
-const STORAGE_KEY = 'team-members-v1';
-
-// Data awal (mock) sesuai spesifikasi
-const INITIAL_MEMBERS = [
-  { id: 1, namaLengkap: 'Budi Santoso', email: 'budi.santoso@perusahaan.com', posisi: 'Frontend Dev', status: 'Online', rating: 2, avatar: 'https://i.pravatar.cc/150?u=1' },
-  { id: 2, namaLengkap: 'Siti Rahma', email: 'siti.rahma@perusahaan.com', posisi: 'UI/UX Designer', status: 'Offline', rating: 5, avatar: 'https://i.pravatar.cc/150?u=2' },
-  { id: 3, namaLengkap: 'Ahmad Fauzi', email: 'ahmad.fauzi@perusahaan.com', posisi: 'Backend Engineer', status: 'Online', rating: 1, avatar: 'https://i.pravatar.cc/150?u=3' },
-];
-
-// Ambil data dari localStorage; fallback ke mock data jika kosong atau korup
-function loadMembers() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return INITIAL_MEMBERS;
-    const parsed = JSON.parse(raw);
-    // Validasi bentuk data: harus array of object dengan field esensial
-    // yang benar tipenya — jika korup, fallback ke mock data agar app tetap render
-    const isValid = Array.isArray(parsed) && parsed.every(m =>
-      m && typeof m === 'object' &&
-      typeof m.namaLengkap === 'string' &&
-      typeof m.posisi === 'string' &&
-      (m.status === 'Online' || m.status === 'Offline') &&
-      typeof m.rating === 'number'
-    );
-    return isValid ? parsed : INITIAL_MEMBERS;
-  } catch {
-    return INITIAL_MEMBERS;
-  }
-}
+import {
+  createMember,
+  deleteMember,
+  listMembers,
+  updateMember,
+} from '../api/members';
 
 function TeamDirectory() {
-  // State diinisialisasi (lazy) dari localStorage saat render pertama —
-  // fallback ke mock data jika kosong atau korup
-  const [members, setMembers] = useState(loadMembers);
+  const [members, setMembers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [editId, setEditId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // 1. Persistensi: simpan setiap kali members berubah
+  // 1. Ambil data dari REST API sekali saat komponen tampil.
+  //    Semua update state terjadi di callback async (bukan langsung di body effect).
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(members));
-  }, [members]);
+    let cancelled = false;
+
+    listMembers()
+      .then((data) => {
+        if (cancelled) return;
+        setMembers(data);
+        setError('');
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 2. Statistik Reaktif (Total / Online / Offline)
   const totalMembers = members.length;
@@ -55,40 +48,66 @@ function TeamDirectory() {
     m.namaLengkap.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // 4. Handler Warisan (Modul 1.3 & 1.4): toggle status & beri bintang
-  const handleToggleStatus = (id) => {
-    setMembers(prev => prev.map(m => m.id === id ? { ...m, status: m.status === 'Online' ? 'Offline' : 'Online' } : m));
-  };
-  const handleAddStar = (id) => {
-    setMembers(prev => prev.map(m => m.id === id ? { ...m, rating: m.rating + 1 } : m));
+  // Ganti satu anggota di state dengan versi terbaru dari server
+  const replaceMember = (updated) => {
+    setMembers(prev => prev.map(m => (m.id === updated.id ? updated : m)));
   };
 
-  // 5. CRUD — Create & Update (dipanggil oleh form submit)
-  const handleSubmit = (formData) => {
-    if (editId !== null) {
-      // Mode Update: timpa data lama berdasarkan editId via map(), lalu kembali ke mode Tambah
-      setMembers(prev => prev.map(m => (m.id === editId ? { ...m, ...formData } : m)));
-      setEditId(null);
-    } else {
-      // Mode Create: generate ID acak, default status Online dengan 0 Bintang
-      const id = crypto.randomUUID();
-      const newMember = {
-        id,
-        ...formData,
-        status: 'Online',
-        rating: 0,
-        avatar: `https://i.pravatar.cc/150?u=${id}`,
-      };
-      setMembers(prev => [newMember, ...prev]);
+  // 4. Handler Warisan (Modul 1.3 & 1.4): toggle status & beri bintang — disimpan ke DB
+  const handleToggleStatus = async (id) => {
+    const member = members.find(m => m.id === id);
+    if (!member) return;
+    try {
+      const updated = await updateMember(id, {
+        status: member.status === 'Online' ? 'Offline' : 'Online',
+      });
+      replaceMember(updated);
+      setError('');
+    } catch (err) {
+      setError(err.message);
     }
   };
 
+  const handleAddStar = async (id) => {
+    const member = members.find(m => m.id === id);
+    if (!member) return;
+    try {
+      const updated = await updateMember(id, { rating: member.rating + 1 });
+      replaceMember(updated);
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // 5. CRUD — Create & Update (dipanggil oleh form submit)
+  //    Error sengaja dilempar ke form supaya isian user tidak hilang saat request gagal.
+  const handleSubmit = async (formData) => {
+    if (editId !== null) {
+      // Mode Update: simpan perubahan, lalu kembali ke mode Tambah
+      const updated = await updateMember(editId, formData);
+      replaceMember(updated);
+      setEditId(null);
+    } else {
+      // Mode Create: server yang menentukan id, status Online, rating 0, dan avatar
+      const created = await createMember(formData);
+      setMembers(prev => [...prev, created]);
+    }
+    setError('');
+  };
+
   // 6. CRUD — Delete (dengan konfirmasi window.confirm)
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (!window.confirm('Yakin ingin menghapus anggota tim ini?')) return;
-    setMembers(prev => prev.filter(m => m.id !== id));
-    // Batalkan mode edit jika anggota yang dihapus sedang diedit
-    if (editId === id) setEditId(null);
+    try {
+      await deleteMember(id);
+      setMembers(prev => prev.filter(m => m.id !== id));
+      // Batalkan mode edit jika anggota yang dihapus sedang diedit
+      if (editId === id) setEditId(null);
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   // 7. CRUD — masuk mode Edit (form di atas akan terisi data anggota ini)
@@ -116,6 +135,18 @@ function TeamDirectory() {
         </div>
       </div>
 
+      {/* Pesan error dari server (hapus / status / bintang / muat data) */}
+      {error && (
+        <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-left text-sm font-medium text-red-700">
+          ⚠️ {error}
+          {!loading && members.length === 0 && (
+            <span className="mt-1 block font-normal text-red-600">
+              Pastikan server API berjalan: jalankan <code className="font-semibold">npm run server</code>.
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Form Tambah / Edit Anggota — key berubah saat editId berubah,
           sehingga form ter-remount dan terisi data anggota yang diedit */}
       <AddMemberForm
@@ -136,9 +167,15 @@ function TeamDirectory() {
 
       {/* Grid Kartu Anggota */}
       <div className="mt-3 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredMembers.length === 0 ? (
+        {loading ? (
           <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-[15px] text-slate-500">
-            ⚠️ Tidak ada anggota tim yang cocok dengan kata kunci "{searchQuery}".
+            Memuat data anggota tim...
+          </div>
+        ) : filteredMembers.length === 0 ? (
+          <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-[15px] text-slate-500">
+            {members.length === 0
+              ? 'Belum ada anggota tim. Tambahkan anggota pertama lewat form di atas.'
+              : `⚠️ Tidak ada anggota tim yang cocok dengan kata kunci "${searchQuery}".`}
           </div>
         ) : (
           filteredMembers.map(member => (

@@ -24,16 +24,19 @@ function AddMemberForm({ onSubmit, editingMember, onCancelEdit }) {
       : EMPTY_FORM
   );
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+    if (errors.form) setErrors(prev => ({ ...prev, form: '' }));
   };
 
   // 3. Submit: cegah default, validasi, lalu serahkan ke parent
-  //    (parent menentukan create vs update berdasarkan editId)
-  const handleSubmit = (e) => {
+  //    (parent menentukan create vs update berdasarkan editId).
+  //    Form hanya dikosongkan kalau request ke API berhasil.
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const result = memberSchema.safeParse(formData);
     if (!result.success) {
@@ -42,9 +45,18 @@ function AddMemberForm({ onSubmit, editingMember, onCancelEdit }) {
       setErrors(fieldErrors);
       return;
     }
-    onSubmit(result.data);
-    setFormData(EMPTY_FORM);
+
+    setSubmitting(true);
     setErrors({});
+    try {
+      await onSubmit(result.data);
+      setFormData(EMPTY_FORM);
+    } catch (err) {
+      // Isian tetap dipertahankan supaya user bisa mencoba lagi
+      setErrors({ form: err.message });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const inputClass = (field) =>
@@ -102,19 +114,31 @@ function AddMemberForm({ onSubmit, editingMember, onCancelEdit }) {
             <button
               type="button"
               onClick={onCancelEdit}
-              className="cursor-pointer border-0 font-[inherit] whitespace-nowrap rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-300 active:scale-[0.98]"
+              disabled={submitting}
+              className="cursor-pointer border-0 font-[inherit] whitespace-nowrap rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
               Batal
             </button>
           )}
           <button
             type="submit"
-            className="cursor-pointer border-0 font-[inherit] whitespace-nowrap rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-sky-700 active:scale-[0.98]"
+            disabled={submitting}
+            className="cursor-pointer border-0 font-[inherit] whitespace-nowrap rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-sky-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {editingMember ? 'Simpan Perubahan' : '+ Tambah Anggota'}
+            {submitting
+              ? 'Menyimpan...'
+              : editingMember
+                ? 'Simpan Perubahan'
+                : '+ Tambah Anggota'}
           </button>
         </div>
       </div>
+
+      {errors.form && (
+        <p role="alert" className="mt-3 text-left text-xs font-semibold text-red-600">
+          ⚠️ {errors.form}
+        </p>
+      )}
     </form>
   );
 }

@@ -15,6 +15,9 @@ dist-ssr
 # Superpowers scratch (ledger, briefs, review packages)
 .superpowers/
 
+# Kredensial lokal backend
+server/.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
