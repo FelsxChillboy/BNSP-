@@ -41,4 +41,28 @@ export async function ensureSchema() {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Relasi satu kategori ke banyak barang (foreign key).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS kategori (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      nama VARCHAR(80) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_kategori_nama (nama)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS barang (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      nama VARCHAR(120) NOT NULL,
+      kategori_id INT UNSIGNED NOT NULL,
+      stok INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_barang_kategori FOREIGN KEY (kategori_id)
+        REFERENCES kategori (id) ON UPDATE CASCADE ON DELETE RESTRICT,
+      CONSTRAINT chk_barang_stok CHECK (stok >= 0)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 }

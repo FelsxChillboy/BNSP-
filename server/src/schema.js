@@ -39,3 +39,52 @@ export const updateMemberSchema = z
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Tidak ada data yang diubah',
   });
+
+// Input dari JSON/form bisa berupa string ("8") — ubah ke angka,
+// tetapi biarkan kosong/null/undefined agar validasi "wajib diisi" tetap jalan.
+function toNumber(value) {
+  if (value === '' || value === null || value === undefined) return undefined;
+  return Number(value);
+}
+
+const kategoriIdSchema = z.preprocess(
+  toNumber,
+  z
+    .number('Kategori wajib dipilih')
+    .int('Kategori tidak valid')
+    .positive('Kategori tidak valid')
+);
+
+const stokSchema = z.preprocess(
+  toNumber,
+  z
+    .number('Stok harus berupa angka')
+    .int('Stok harus bilangan bulat')
+    .min(0, 'Stok tidak boleh negatif')
+);
+
+export const createBarangSchema = z.object({
+  nama: z
+    .string()
+    .trim()
+    .min(1, 'Nama barang wajib diisi')
+    .max(120, 'Nama barang maksimal 120 karakter'),
+  kategoriId: kategoriIdSchema,
+  stok: stokSchema,
+});
+
+// PUT/PATCH menerima sebagian field.
+export const updateBarangSchema = z
+  .object({
+    nama: z
+      .string()
+      .trim()
+      .min(1, 'Nama barang wajib diisi')
+      .max(120, 'Nama barang maksimal 120 karakter'),
+    kategoriId: kategoriIdSchema,
+    stok: stokSchema,
+  })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'Tidak ada data yang diubah',
+  });

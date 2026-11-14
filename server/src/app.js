@@ -1,9 +1,18 @@
+import cors from 'cors';
 import express from 'express';
 import { randomUUID } from 'node:crypto';
 import { pool } from './db.js';
-import { createMemberSchema, updateMemberSchema } from './schema.js';
+import { fetchCnnNews } from './news.js';
+import {
+  createBarangSchema,
+  createMemberSchema,
+  updateBarangSchema,
+  updateMemberSchema,
+} from './schema.js';
 
 const COLUMNS = 'id, nama_lengkap, email, posisi, status, rating, avatar';
+
+const BARANG_COLUMNS = 'b.id, b.nama, b.kategori_id, k.nama AS kategori, b.stok';
 
 // Pemetaan kolom snake_case (MySQL) → field camelCase (kontrak API/frontend)
 function mapRow(row) {
@@ -16,6 +25,38 @@ function mapRow(row) {
     rating: row.rating,
     avatar: row.avatar,
   };
+}
+
+function mapBarangRow(row) {
+  return {
+    id: row.id,
+    nama: row.nama,
+    kategoriId: row.kategori_id,
+    kategori: row.kategori,
+    stok: row.stok,
+  };
+}
+
+// ID dari URL harus bilangan bulat positif; selain itu dianggap tidak valid.
+function parseId(value) {
+  if (!/^\d+$/.test(value)) return null;
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+async function findBarangById(id) {
+  const [rows] = await pool.query(
+    `SELECT ${BARANG_COLUMNS} FROM barang b
+     JOIN kategori k ON k.id = b.kategori_id
+     WHERE b.id = ?`,
+    [id]
+  );
+  return rows.length > 0 ? mapBarangRow(rows[0]) : null;
+}
+
+async function kategoriExists(id) {
+  const [rows] = await pool.query('SELECT id FROM kategori WHERE id = ?', [id]);
+  return rows.length > 0;
 }
 
 // Express 5 meneruskan error async otomatis; helper ini menjaga kompatibilitas Express 4.
@@ -39,6 +80,18 @@ function validate(schema, body) {
 
 export function createApp() {
   const app = express();
+
+  // Bagian 4: izinkan frontend dari origin (port) berbeda.
+  // Default: Vite dev di localhost/127.0.0.1 port 5173.
+  // Ubah lewat CORS_ORIGIN di .env (pisahkan dengan koma bila lebih dari satu).
+  const allowedOrigins = (
+    process.env.CORS_ORIGIN ?? 'http://localhost:5173,http://127.0.0.1:5173'
+  )
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  app.use(cors({ origin: allowedOrigins }));
   app.use(express.json());
 
   // Daftar anggota (urut dari yang paling lama agar seed tampil sesuai spesifikasi)
@@ -151,6 +204,158 @@ export function createApp() {
       }
 
       res.status(204).end();
+    })
+  );
+
+  // Daftar kategori (dipakai untuk dropdown form barang)
+  app.get(
+    '/api/kategori',
+    asyncHandler(async (req, res) => {
+      const [rows] = await pool.query(
+        'SELECT id, nama FROM kategori ORDER BY nama ASC'
+      );
+      res.json(rows);
+    })
+  );
+
+  // Daftar barang + nama kategori (query JOIN)
+  app.get(
+    '/api/barang',
+    asyncHandler(async (req, res) => {
+      const [rows] = await pool.query(
+        `SELECT ${BARANG_COLUMNS} FROM barang b
+         JOIN kategori k ON k.id = b.kategori_id
+         ORDER BY b.id ASC`
+      );
+      res.json(rows.map(mapBarangRow));
+    })
+  );
+
+  app.get(
+    '/api/barang/:id',
+    asyncHandler(async (req, res) => {
+      const id = parseId(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ message: 'ID barang harus berupa angka positif' });
+      }
+
+      const barang = await findBarangById(id);
+      if (!barang) {
+        return res.status(404).json({ message: 'Barang tidak ditemukan' });
+      }
+
+      res.json(barang);
+    })
+  );
+
+  // Tambah barang: nama wajib, stok bilangan bulat >= 0, kategori harus ada.
+  app.post(
+    '/api/barang',
+    asyncHandler(async (req, res) => {
+      const parsed = validate(createBarangSchema, req.body);
+      if (parsed.errors) {
+        return res.status(400).json({
+          message: parsed.message,
+          errors: parsed.errors,
+        });
+      }
+
+      if (!(await kategoriExists(parsed.data.kategoriId))) {
+        return res.status(400).json({
+          message: 'Kategori tidak ditemukan',
+          errors: { kategoriId: 'Kategori tidak ditemukan' },
+        });
+      }
+
+      const [result] = await pool.query(
+        'INSERT INTO barang (nama, kategori_id, stok) VALUES (?, ?, ?)',
+        [parsed.data.nama, parsed.data.kategoriId, parsed.data.stok]
+      );
+
+      res.status(201).json(await findBarangById(result.insertId));
+    })
+  );
+
+  // PUT dan PATCH memakai handler yang sama (body boleh sebagian).
+  const updateBarang = asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ message: 'ID barang harus berupa angka positif' });
+    }
+
+    const parsed = validate(updateBarangSchema, req.body);
+    if (parsed.errors) {
+      return res.status(400).json({
+        message: parsed.message,
+        errors: parsed.errors,
+      });
+    }
+
+    const existing = await findBarangById(id);
+    if (!existing) {
+      return res.status(404).json({ message: 'Barang tidak ditemukan' });
+    }
+
+    if (parsed.data.kategoriId !== undefined && !(await kategoriExists(parsed.data.kategoriId))) {
+      return res.status(400).json({
+        message: 'Kategori tidak ditemukan',
+        errors: { kategoriId: 'Kategori tidak ditemukan' },
+      });
+    }
+
+    const columnByField = { nama: 'nama', kategoriId: 'kategori_id', stok: 'stok' };
+    const assignments = [];
+    const values = [];
+    for (const [field, column] of Object.entries(columnByField)) {
+      if (parsed.data[field] !== undefined) {
+        assignments.push(`${column} = ?`);
+        values.push(parsed.data[field]);
+      }
+    }
+
+    await pool.query(`UPDATE barang SET ${assignments.join(', ')} WHERE id = ?`, [
+      ...values,
+      id,
+    ]);
+
+    res.json(await findBarangById(id));
+  });
+
+  app.put('/api/barang/:id', updateBarang);
+  app.patch('/api/barang/:id', updateBarang);
+
+  app.delete(
+    '/api/barang/:id',
+    asyncHandler(async (req, res) => {
+      const id = parseId(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ message: 'ID barang harus berupa angka positif' });
+      }
+
+      const [result] = await pool.query('DELETE FROM barang WHERE id = ?', [id]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: 'Barang tidak ditemukan' });
+      }
+
+      res.status(204).end();
+    })
+  );
+
+  // Proxy berita CNN (RSS) agar frontend tidak terkena CORS dan
+  // header User-Agent bisa diatur dari server.
+  app.get(
+    '/api/news',
+    asyncHandler(async (req, res) => {
+      try {
+        const data = await fetchCnnNews();
+        res.json({ data });
+      } catch (err) {
+        console.error('[server] Gagal mengambil berita CNN:', err);
+        res.status(502).json({
+          message: 'Gagal mengambil berita dari CNN Indonesia',
+        });
+      }
     })
   );
 

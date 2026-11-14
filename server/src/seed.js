@@ -32,6 +32,19 @@ const SEED_MEMBERS = [
   },
 ];
 
+// Bagian 1 praktik: data kategori dan minimal 5 barang awal.
+const SEED_KATEGORI = ['Elektronik', 'ATK', 'Makanan', 'Minuman', 'Pakaian'];
+
+const SEED_BARANG = [
+  { nama: 'Laptop Belajar', kategori: 'Elektronik', stok: 8 },
+  { nama: 'Mouse Wireless', kategori: 'Elektronik', stok: 25 },
+  { nama: 'Pulpen Gel', kategori: 'ATK', stok: 100 },
+  { nama: 'Buku Tulis', kategori: 'ATK', stok: 60 },
+  { nama: 'Kopi Sachet', kategori: 'Makanan', stok: 40 },
+  { nama: 'Air Mineral', kategori: 'Minuman', stok: 50 },
+  { nama: 'Kaos Pelatihan', kategori: 'Pakaian', stok: 15 },
+];
+
 await ensureSchema();
 
 for (const member of SEED_MEMBERS) {
@@ -50,7 +63,37 @@ for (const member of SEED_MEMBERS) {
   );
 }
 
+for (const nama of SEED_KATEGORI) {
+  await pool.query('INSERT IGNORE INTO kategori (nama) VALUES (?)', [nama]);
+}
+
+const [kategoriRows] = await pool.query('SELECT id, nama FROM kategori');
+const kategoriIdByName = Object.fromEntries(
+  kategoriRows.map((row) => [row.nama, row.id])
+);
+
+for (const barang of SEED_BARANG) {
+  const [ada] = await pool.query('SELECT id FROM barang WHERE nama = ? LIMIT 1', [
+    barang.nama,
+  ]);
+  if (ada.length > 0) continue;
+
+  const kategoriId = kategoriIdByName[barang.kategori];
+  if (!kategoriId) {
+    throw new Error(`Kategori "${barang.kategori}" tidak ditemukan saat seed`);
+  }
+
+  await pool.query(
+    'INSERT INTO barang (nama, kategori_id, stok) VALUES (?, ?, ?)',
+    [barang.nama, kategoriId, barang.stok]
+  );
+}
+
 const [rows] = await pool.query('SELECT COUNT(*) AS total FROM members');
-console.log(`Seed selesai. Total anggota di database: ${rows[0].total}`);
+const [kategoriCount] = await pool.query('SELECT COUNT(*) AS total FROM kategori');
+const [barangCount] = await pool.query('SELECT COUNT(*) AS total FROM barang');
+console.log(
+  `Seed selesai. Anggota: ${rows[0].total}, kategori: ${kategoriCount[0].total}, barang: ${barangCount[0].total}.`
+);
 
 await pool.end();
