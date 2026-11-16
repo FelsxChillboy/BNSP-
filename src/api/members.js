@@ -1,8 +1,7 @@
 // Klien REST API untuk data anggota tim.
 // Di dev, Vite mem-proxy /api ke http://localhost:3000 (lihat vite.config.js).
 
-const ENDPOINT = '/api/members';
-
+const ENDPOINT = '/api/member';
 async function request(path, options = {}) {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },

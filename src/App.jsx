@@ -36,8 +36,7 @@ function App() {
       </header>
 
       <main className="main-content">
-        {activeTab === 'team' && <TeamDirectory />}
-        {activeTab === 'barang' && <BarangDirectory />}
+        {activeTab === 'team' && <TeamDirectoryy />}        {activeTab === 'barang' && <BarangDirectory />}
         {activeTab === 'news' && <NewsFeed />}
       </main>
     </div>

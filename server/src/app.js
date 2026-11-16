@@ -10,8 +10,7 @@ import {
   updateMemberSchema,
 } from './schema.js';
 
-const COLUMNS = 'id, nama_lengkap, email, posisi, status, rating, avatar';
-
+const COLUMNS = 'id, nama_lengkapx, email, posisi, status, rating, avatar';
 const BARANG_COLUMNS = 'b.id, b.nama, b.kategori_id, k.nama AS kategori, b.stok';
 
 // Pemetaan kolom snake_case (MySQL) → field camelCase (kontrak API/frontend)

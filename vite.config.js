@@ -9,7 +9,6 @@ export default defineConfig({
     // Frontend memanggil /api/... dan Vite meneruskannya ke server Express.
     // Dengan proxy ini tidak ada masalah CORS saat development.
     proxy: {
-      '/api': 'http://localhost:3000',
-    },
+      '/api': 'http://localhost:3001',    },
   },
 })
